@@ -47,6 +47,14 @@ impl AnimationClip {
             None => anyhow::bail!("No file extension for animation: {}", path.display()),
         }
     }
+
+    /// Load an animation clip from in-memory GLB/glTF bytes.
+    ///
+    /// This is the `include_bytes!` / Android-asset friendly variant of [`Self::load`].
+    /// Uses `gltf::import_slice` internally; only GLB format is supported.
+    pub fn load_from_bytes(data: &[u8], name: &str) -> anyhow::Result<Self> {
+        load_glb_bytes(data, name)
+    }
 }
 
 /// FBX time units per second (standard FBX TimeMode).
@@ -112,6 +120,69 @@ fn load_glb(path: &Path) -> anyhow::Result<AnimationClip> {
         duration,
         anim.name().unwrap_or("idle"),
         true, // GLB from Blender needs 180° Y conjugation
+    )
+}
+
+/// Load animation from in-memory GLB/glTF bytes (for `include_bytes!` / Android assets).
+fn load_glb_bytes(data: &[u8], name: &str) -> anyhow::Result<AnimationClip> {
+    let (document, buffers, _images) = gltf::import_slice(data)?;
+
+    let node_count = document.nodes().len();
+    let mut node_names: Vec<String> = vec![String::new(); node_count];
+    let mut node_rest_rot: Vec<Quat> = vec![Quat::IDENTITY; node_count];
+    let mut node_parent: Vec<Option<usize>> = vec![None; node_count];
+
+    for node in document.nodes() {
+        let idx = node.index();
+        node_names[idx] = node.name().unwrap_or("").to_string();
+        let (_, rot, _) = node.transform().decomposed();
+        node_rest_rot[idx] = Quat::from_xyzw(rot[0], rot[1], rot[2], rot[3]);
+        for child in node.children() {
+            node_parent[child.index()] = Some(idx);
+        }
+    }
+
+    let anim = document
+        .animations()
+        .next()
+        .ok_or_else(|| anyhow::anyhow!("No animations found in bytes (name='{}')", name))?;
+
+    let mut node_channels: HashMap<usize, (Vec<f32>, Vec<Quat>)> = HashMap::new();
+    let mut duration: f32 = 0.0;
+
+    for channel in anim.channels() {
+        if channel.target().property() != gltf::animation::Property::Rotation {
+            continue;
+        }
+        let node_idx = channel.target().node().index();
+        let reader = channel.reader(|buf| buffers.get(buf.index()).map(|d| d.0.as_slice()));
+
+        let times: Vec<f32> = match reader.read_inputs() {
+            Some(iter) => iter.collect(),
+            None => continue,
+        };
+        let rotations: Vec<Quat> = match reader.read_outputs() {
+            Some(gltf::animation::util::ReadOutputs::Rotations(rots)) => rots
+                .into_f32()
+                .map(|[x, y, z, w]| Quat::from_xyzw(x, y, z, w))
+                .collect(),
+            _ => continue,
+        };
+
+        if let Some(&last) = times.last() {
+            duration = duration.max(last);
+        }
+        node_channels.insert(node_idx, (times, rotations));
+    }
+
+    retarget_to_vrm(
+        &node_names,
+        &node_rest_rot,
+        &node_parent,
+        &node_channels,
+        duration,
+        anim.name().unwrap_or(name),
+        true, // GLB from Blender needs 180deg Y conjugation
     )
 }
 

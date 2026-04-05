@@ -107,6 +107,7 @@ const FACE_KEY_INDICES: &[usize] = &[
 ];
 
 /// Input data for a single frame's debug overlay.
+#[derive(Default)]
 pub struct OverlayInput {
     /// Camera frame image (RGB8, 640x480).
     pub camera_frame: Option<image::DynamicImage>,
@@ -283,6 +284,20 @@ impl DebugOverlay {
         view: &wgpu::TextureView,
         input: &OverlayInput,
     ) -> anyhow::Result<()> {
+        self.render_raw(&ctx.device, &ctx.queue, view, input)
+    }
+
+    /// Render the debug overlay using raw device/queue/view references.
+    ///
+    /// This variant is useful on platforms (e.g. Android) where a full
+    /// [`RenderContext`] — which owns a `wgpu::Surface` — is not available.
+    pub fn render_raw(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        view: &wgpu::TextureView,
+        input: &OverlayInput,
+    ) -> anyhow::Result<()> {
         let mut vertices: Vec<OverlayVertex> = Vec::with_capacity(2048);
 
         // 1. Camera preview quad (textured)
@@ -307,11 +322,9 @@ impl DebugOverlay {
         );
         self.build_face_landmarks(&mut vertices, &input.face);
 
-        let mut encoder = ctx
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("overlay_encoder"),
-            });
+        let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("overlay_encoder"),
+        });
 
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -337,13 +350,11 @@ impl DebugOverlay {
                     .as_ref()
                     .unwrap_or(&self.white_bind_group);
                 pass.set_bind_group(0, cam_bg, &[]);
-                let cam_buffer = ctx
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("overlay_cam_vb"),
-                        contents: bytemuck::cast_slice(&cam_vertices),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
+                let cam_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("overlay_cam_vb"),
+                    contents: bytemuck::cast_slice(&cam_vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
                 pass.set_vertex_buffer(0, cam_buffer.slice(..));
                 pass.draw(0..cam_vertices.len() as u32, 0..1);
             }
@@ -351,19 +362,17 @@ impl DebugOverlay {
             // Draw landmark dots/lines (with white texture → vertex color only)
             if !vertices.is_empty() {
                 pass.set_bind_group(0, &self.white_bind_group, &[]);
-                let lm_buffer = ctx
-                    .device
-                    .create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                        label: Some("overlay_lm_vb"),
-                        contents: bytemuck::cast_slice(&vertices),
-                        usage: wgpu::BufferUsages::VERTEX,
-                    });
+                let lm_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some("overlay_lm_vb"),
+                    contents: bytemuck::cast_slice(&vertices),
+                    usage: wgpu::BufferUsages::VERTEX,
+                });
                 pass.set_vertex_buffer(0, lm_buffer.slice(..));
                 pass.draw(0..vertices.len() as u32, 0..1);
             }
         }
 
-        ctx.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
         Ok(())
     }
 
