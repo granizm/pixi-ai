@@ -8,3 +8,9 @@ Cargo.lock
 kalidokit-rust
 kalidokit-rust2
 keylogger
+
+# macOS
+.DS_Store
+
+# Serena cache
+.serena/
