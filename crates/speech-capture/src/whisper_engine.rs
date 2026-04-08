@@ -59,6 +59,16 @@ impl WhisperEngine {
         // Style hint for Japanese transcription output formatting
         params.set_initial_prompt("これは日本語の音声です。");
 
+        // ── Encoder context optimization ──
+        //
+        // Whisper pads all input to 30s (1500 mel frames) by default.
+        // Set audio_ctx to match actual audio length so the encoder skips
+        // zero-padded frames. This directly reduces encoder computation.
+        // 1 mel frame = 20ms, so: audio_ctx = ceil(duration_secs * 50)
+        let duration_secs = audio_f32.len() as f32 / 16000.0;
+        let audio_ctx = ((duration_secs * 50.0).ceil() as i32).min(1500).max(1);
+        params.set_audio_ctx(audio_ctx);
+
         state
             .full(params, &audio_f32)
             .map_err(|e| SpeechError::Stt(format!("Whisper transcription failed: {e}")))?;
