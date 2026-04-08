@@ -5,6 +5,8 @@ use crate::{SpeechError, SttConfig};
 pub struct WhisperEngine {
     ctx: whisper_rs::WhisperContext,
     language: Option<String>,
+    /// Directory containing the Whisper model (used to find VAD model)
+    model_dir: String,
 }
 
 impl WhisperEngine {
@@ -15,9 +17,15 @@ impl WhisperEngine {
         )
         .map_err(|e| SpeechError::Stt(format!("Failed to load Whisper model: {e}")))?;
 
+        let model_dir = std::path::Path::new(&config.model_path)
+            .parent()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_default();
+
         Ok(Self {
             ctx,
             language: config.language.clone(),
+            model_dir,
         })
     }
 
@@ -66,6 +74,17 @@ impl WhisperEngine {
         // Style hint for Japanese transcription output formatting
         params.set_initial_prompt("これは日本語の音声です。");
 
+        // ── Silero VAD (whisper.cpp built-in) ──
+        //
+        // If a Silero VAD model is found next to the Whisper model,
+        // enable it to skip silence within the audio segment.
+        // This is a second layer of VAD (after TenVad segmentation):
+        // TenVad decides WHEN to send audio, Silero decides WHAT to skip inside it.
+        if let Some(vad_path) = self.find_vad_model() {
+            log::info!("Enabling whisper.cpp built-in Silero VAD: {}", vad_path);
+            params.set_vad_model_path(Some(&vad_path));
+        }
+
         state
             .full(params, &audio_f32)
             .map_err(|e| SpeechError::Stt(format!("Whisper transcription failed: {e}")))?;
@@ -81,5 +100,21 @@ impl WhisperEngine {
         }
 
         Ok(text.trim().to_string())
+    }
+
+    /// Look for a Silero VAD model in the same directory as the Whisper model.
+    fn find_vad_model(&self) -> Option<String> {
+        let candidates = [
+            "ggml-silero-v6.2.0.bin",
+            "ggml-silero-v5.1.2.bin",
+            "silero-vad.onnx",
+        ];
+        for name in &candidates {
+            let path = std::path::Path::new(&self.model_dir).join(name);
+            if path.exists() {
+                return Some(path.to_string_lossy().to_string());
+            }
+        }
+        None
     }
 }
