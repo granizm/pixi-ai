@@ -39,7 +39,14 @@ impl WhisperEngine {
         params.set_print_progress(false);
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
-        params.set_single_segment(false);
+        // Skip timestamp token generation (not needed, saves decoder steps)
+        params.set_no_timestamps(true);
+        // Single segment output: our VAD already segments speech, so each
+        // transcribe() call is one utterance — no need for internal re-segmentation.
+        params.set_single_segment(true);
+        // Suppress non-speech tokens (music notes, applause markers, etc.)
+        // Prevents decoder from wasting steps on non-speech output.
+        params.set_suppress_nst(true);
 
         // ── Noise-robust inference parameters ──
         //
