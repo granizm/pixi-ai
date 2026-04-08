@@ -41,6 +41,17 @@ impl WhisperEngine {
         params.set_print_timestamps(false);
         params.set_single_segment(false);
 
+        // Anti-hallucination: discard low-confidence segments
+        params.set_entropy_thold(2.4);
+        // Prevent context-carry loops (noise-induced repetition)
+        params.set_no_context(true);
+        // Raise no-speech threshold to reject noise-only segments
+        params.set_no_speech_thold(0.6);
+        // Deterministic decoding (no temperature sampling)
+        params.set_temperature(0.0);
+        // Disable temperature fallback (avoid slow retries on noisy input)
+        params.set_temperature_inc(0.0);
+
         state
             .full(params, &audio_f32)
             .map_err(|e| SpeechError::Stt(format!("Whisper transcription failed: {e}")))?;
