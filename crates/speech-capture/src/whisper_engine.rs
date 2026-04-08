@@ -41,16 +41,23 @@ impl WhisperEngine {
         params.set_print_timestamps(false);
         params.set_single_segment(false);
 
-        // Anti-hallucination: discard low-confidence segments
+        // ── Noise-robust inference parameters ──
+        //
+        // Anti-hallucination: discard segments with high entropy (low confidence)
         params.set_entropy_thold(2.4);
-        // Prevent context-carry loops (noise-induced repetition)
+        // Prevent context-carry loops: noise in one segment propagates errors
+        // to subsequent segments via conditioning. Disabling this is critical
+        // for noisy environments (proven to reduce hallucination cascades).
         params.set_no_context(true);
-        // Raise no-speech threshold to reject noise-only segments
-        params.set_no_speech_thold(0.6);
+        // Lower no-speech threshold: more aggressively skip noise-only segments.
+        // Default 0.6 lets some noise through; 0.4 filters more aggressively.
+        params.set_no_speech_thold(0.4);
         // Deterministic decoding (no temperature sampling)
         params.set_temperature(0.0);
         // Disable temperature fallback (avoid slow retries on noisy input)
         params.set_temperature_inc(0.0);
+        // Style hint for Japanese transcription output formatting
+        params.set_initial_prompt("これは日本語の音声です。");
 
         state
             .full(params, &audio_f32)
