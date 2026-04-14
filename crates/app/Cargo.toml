@@ -1,7 +1,18 @@
 [package]
-name = "kalidokit-rust"
+name = "pixi-ai"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name = "pixi-ai"
+path = "src/main.rs"
+
+[package.metadata.bundle]
+name = "Pixi AI"
+identifier = "com.granizm.pixi-ai"
+category = "public.app-category.productivity"
+short_description = "Pixi AI"
+osx_info_plist_exts = ["crates/app/info_plist_ext.plist"]
 
 [dependencies]
 renderer = { path = "../renderer" }
