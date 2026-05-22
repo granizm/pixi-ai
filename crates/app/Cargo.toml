@@ -36,3 +36,15 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 lua-imgui = { path = "../lua-imgui" }
+
+[package.metadata.deb]
+name = "pixi-ai"
+maintainer = "granizm"
+copyright = "2024, granizm"
+depends = "$auto"
+section = "utility"
+priority = "optional"
+assets = [
+    ["target/release/pixi-ai", "usr/bin/pixi-ai", "755"],
+    ["../../assets/**/*", "usr/share/pixi-ai/assets/", "644"],
+]

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="Pixi AI"
+           Language="1033"
+           Version="0.1.0"
+           Manufacturer="granizm"
+           UpgradeCode="F934E5D3-FA50-4FDA-ABD8-01C8DA90637A">
+    <Package InstallerVersion="200" Compressed="yes" InstallScope="perMachine"/>
+    <MajorUpgrade DowngradeErrorMessage="A newer version is already installed."/>
+    <MediaTemplate EmbedCab="yes"/>
+    <Feature Id="ProductFeature" Title="Pixi AI" Level="1">
+      <ComponentGroupRef Id="ProductComponents"/>
+    </Feature>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="INSTALLFOLDER" Name="Pixi AI"/>
+      </Directory>
+    </Directory>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component Id="MainExecutable" Guid="*">
+        <File Id="PixiAiExe" Name="pixi-ai.exe" Source="../../target/x86_64-pc-windows-msvc/release/pixi-ai.exe" KeyPath="yes"/>
+      </Component>
+      <Component Id="DirectMLDll" Guid="*">
+        <File Id="DirectMLDll" Name="DirectML.dll" Source="../../target/x86_64-pc-windows-msvc/release/DirectML.dll" KeyPath="yes"/>
+      </Component>
+      <Component Id="OnnxRuntimeLicense" Guid="*">
+        <File Id="OnnxRtLicense" Name="LICENSE-onnxruntime.txt" Source="LICENSE-onnxruntime" KeyPath="yes"/>
+      </Component>
+    </ComponentGroup>
+  </Product>
+</Wix>

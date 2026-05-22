@@ -1,0 +1,5 @@
+[target.x86_64-unknown-linux-gnu]
+dockerfile = "packaging/linux/Dockerfile.cross"
+
+[build.env]
+volumes = ["CROSS_EXTRA_VOL=/Users/yabunaka/dev/pixi-ai-overall"]

@@ -1,0 +1,5 @@
+FROM ghcr.io/cross-rs/x86_64-pc-windows-gnu:main
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nasm \
+    && rm -rf /var/lib/apt/lists/*
