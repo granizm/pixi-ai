@@ -82,6 +82,7 @@ FACE_MODEL_URL="https://github.com/minh1311/mediapipe_onnx/raw/main/mediapipe/mo
 POSE_MODEL_URL="https://huggingface.co/opencv/pose_estimation_mediapipe/resolve/main/pose_estimation_mediapipe_2023mar.onnx"
 HAND_MODEL_URL="https://huggingface.co/opencv/handpose_estimation_mediapipe/resolve/main/handpose_estimation_mediapipe_2023feb.onnx"
 VRM_MODEL_URL="https://github.com/vrm-c/UniVRM/raw/master/Tests/Models/Alicia_vrm-0.51/AliciaSolid_vrm-0.51.vrm"
+SMART_TURN_MODEL_URL="https://huggingface.co/pipecat-ai/smart-turn-v3/resolve/main/onnx/model.onnx"
 
 cmd_download_models() {
   models_dir="${KALIDOKIT_MODELS_PATH:-assets/models}"
@@ -100,7 +101,7 @@ cmd_download_models() {
   if [ -f "$models_dir/face_landmark.onnx" ]; then
     echo "[skip] face_landmark.onnx already exists"
   else
-    echo "[1/4] Downloading face landmark model..."
+    echo "[1/5] Downloading face landmark model..."
     if curl -sSLf -L "$FACE_MODEL_URL" -o "$models_dir/face_landmark.onnx"; then
       echo "  -> face_landmark.onnx ($(du -h "$models_dir/face_landmark.onnx" | cut -f1))"
     else
@@ -113,7 +114,7 @@ cmd_download_models() {
   if [ -f "$models_dir/pose_landmark.onnx" ]; then
     echo "[skip] pose_landmark.onnx already exists"
   else
-    echo "[2/4] Downloading pose landmark model..."
+    echo "[2/5] Downloading pose landmark model..."
     if curl -sSLf -L "$POSE_MODEL_URL" -o "$models_dir/pose_landmark.onnx"; then
       echo "  -> pose_landmark.onnx ($(du -h "$models_dir/pose_landmark.onnx" | cut -f1))"
     else
@@ -126,7 +127,7 @@ cmd_download_models() {
   if [ -f "$models_dir/hand_landmark.onnx" ]; then
     echo "[skip] hand_landmark.onnx already exists"
   else
-    echo "[3/4] Downloading hand landmark model..."
+    echo "[3/5] Downloading hand landmark model..."
     if curl -sSLf -L "$HAND_MODEL_URL" -o "$models_dir/hand_landmark.onnx"; then
       echo "  -> hand_landmark.onnx ($(du -h "$models_dir/hand_landmark.onnx" | cut -f1))"
     else
@@ -139,12 +140,25 @@ cmd_download_models() {
   if [ -f "$models_dir/default_avatar.vrm" ]; then
     echo "[skip] default_avatar.vrm already exists"
   else
-    echo "[4/4] Downloading default VRM avatar..."
+    echo "[4/5] Downloading default VRM avatar..."
     if curl -sSLf -L "$VRM_MODEL_URL" -o "$models_dir/default_avatar.vrm"; then
       echo "  -> default_avatar.vrm ($(du -h "$models_dir/default_avatar.vrm" | cut -f1))"
     else
       echo "  [error] Failed to download VRM avatar" 1>&2
       rm -f "$models_dir/default_avatar.vrm"
+    fi
+  fi
+
+  # 5. Smart turn model
+  if [ -f "$models_dir/smart_turn_v3.onnx" ]; then
+    echo "[skip] smart_turn_v3.onnx already exists"
+  else
+    echo "[5/5] Downloading smart turn model..."
+    if curl -sSLf -L "$SMART_TURN_MODEL_URL" -o "$models_dir/smart_turn_v3.onnx"; then
+      echo "  -> smart_turn_v3.onnx ($(du -h "$models_dir/smart_turn_v3.onnx" | cut -f1))"
+    else
+      echo "  [error] Failed to download smart turn model" 1>&2
+      rm -f "$models_dir/smart_turn_v3.onnx"
     fi
   fi
 

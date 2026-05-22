@@ -24,3 +24,7 @@ log = "0.4"
 pipeline-logger = { path = "crates/logger" }
 mlua = { version = "0.10", features = ["lua54", "vendored", "send"] }
 imgui = "0.12"
+
+[patch.crates-io]
+whisper-rs = { path = "../whisper-rs" }
+whisper-rs-sys = { path = "../whisper-rs/sys" }

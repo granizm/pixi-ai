@@ -392,20 +392,31 @@ impl Scene {
         queue.write_buffer(&self.lights_buffer, 0, bytemuck::bytes_of(&lights_uniform));
     }
 
-    /// Render the 3D scene to a texture view (does not acquire or present the surface).
-    pub fn render_to_view(&self, ctx: &RenderContext, view: &wgpu::TextureView) {
-        self.render_to_view_with_depth(ctx, view, &self.depth.view);
+    /// Render the 3D scene to a texture view using raw device/queue references.
+    /// This is the core implementation used by both desktop and Android paths.
+    pub fn render_to_view_raw(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        view: &wgpu::TextureView,
+    ) {
+        self.render_to_view_with_depth_raw(device, queue, view, &self.depth.view);
     }
 
-    /// Render the 3D scene to a texture view with a specified depth buffer.
-    fn render_to_view_with_depth(
+    /// Render the 3D scene to a texture view (does not acquire or present the surface).
+    pub fn render_to_view(&self, ctx: &RenderContext, view: &wgpu::TextureView) {
+        self.render_to_view_raw(&ctx.device, &ctx.queue, view);
+    }
+
+    /// Render the 3D scene to a texture view with a specified depth buffer (raw device/queue).
+    fn render_to_view_with_depth_raw(
         &self,
-        ctx: &RenderContext,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
         view: &wgpu::TextureView,
         depth_view: &wgpu::TextureView,
     ) {
-        let mut encoder = ctx
-            .device
+        let mut encoder = device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
         // Background: video takes priority over static image
         let has_background = if let Some(bg_video) = &self.bg_video {
@@ -489,7 +500,17 @@ impl Scene {
                 mesh.draw(&mut pass);
             }
         }
-        ctx.queue.submit(std::iter::once(encoder.finish()));
+        queue.submit(std::iter::once(encoder.finish()));
+    }
+
+    /// Render the 3D scene to a texture view with a specified depth buffer.
+    fn render_to_view_with_depth(
+        &self,
+        ctx: &RenderContext,
+        view: &wgpu::TextureView,
+        depth_view: &wgpu::TextureView,
+    ) {
+        self.render_to_view_with_depth_raw(&ctx.device, &ctx.queue, view, depth_view);
     }
 
     /// Render the 3D scene to the frame capture texture (uses its own depth buffer).

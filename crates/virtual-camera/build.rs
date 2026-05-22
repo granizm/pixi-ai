@@ -1,7 +1,7 @@
 fn main() {
-    // Only compile Objective-C extension code on macOS
-    #[cfg(target_os = "macos")]
-    {
+    // Only compile Objective-C extension code when targeting macOS
+    let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
+    if target_os == "macos" {
         println!("cargo:rerun-if-changed=macos-extension/");
 
         cc::Build::new()

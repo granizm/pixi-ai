@@ -20,6 +20,7 @@ etd = { path = "../etd", optional = true }
 default = []
 stt = ["dep:whisper-rs"]
 stt-metal = ["stt", "whisper-rs/metal"]
+stt-vulkan = ["stt", "whisper-rs/vulkan"]
 end-of-turn = ["dep:etd"]
 
 [dependencies.serde]

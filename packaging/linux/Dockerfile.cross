@@ -1,0 +1,22 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libc6-dev \
+    libssl-dev \
+    pkg-config \
+    libv4l-dev \
+    libudev-dev \
+    libvulkan-dev \
+    nasm \
+    libasound2-dev \
+    cmake \
+    clang \
+    protobuf-compiler \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /.cache && chmod 777 /.cache

@@ -8,7 +8,7 @@ pub mod segmenter;
 pub mod stt_types;
 
 #[cfg(feature = "stt")]
-mod whisper_engine;
+pub mod whisper_engine;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;

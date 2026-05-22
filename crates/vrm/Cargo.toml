@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-renderer = { path = "../renderer" }
+renderer = { path = "../renderer", default-features = false }
 gltf = { workspace = true }
 fbxcel = { workspace = true }
 glam = { workspace = true }

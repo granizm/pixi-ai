@@ -5,6 +5,12 @@ Cargo.lock
 *.bin
 
 # Build artifacts
-kalidokit-rust
+pixi-ai
 kalidokit-rust2
 keylogger
+
+# macOS
+.DS_Store
+
+# Serena cache
+.serena/
