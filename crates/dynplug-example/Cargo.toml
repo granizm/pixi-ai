@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-dynplug = { path = "../dynplug" }
+dynplug = { path = "../../../sdk/gpkg-rs/crates/dynplug" }

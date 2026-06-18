@@ -5,7 +5,7 @@ edition = "2021"
 description = "Lua scripting for Dear ImGui over wgpu"
 
 [dependencies]
-lua-runtime = { path = "../lua" }
+lua-runtime = { path = "../../../sdk/gpkg-rs/crates/lua-runtime" }
 mlua = { workspace = true }
 imgui = { workspace = true }
 wgpu = { workspace = true }
