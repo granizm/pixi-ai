@@ -1,0 +1,4 @@
+<key>NSCameraUsageDescription</key>
+<string>Pixi AI uses the camera for face, pose, and hand tracking.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>Pixi AI uses the microphone for voice activity detection.</string>

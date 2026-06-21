@@ -1,3 +1,4 @@
+#[cfg(feature = "desktop")]
 use std::sync::Arc;
 
 pub struct RenderContext {
@@ -5,11 +6,31 @@ pub struct RenderContext {
     pub queue: wgpu::Queue,
     pub surface: wgpu::Surface<'static>,
     pub config: wgpu::SurfaceConfiguration,
+    #[cfg(feature = "desktop")]
     pub window: Arc<winit::window::Window>,
     adapter: wgpu::Adapter,
 }
 
 impl RenderContext {
+    /// Create from pre-initialized wgpu components (for Android / embedded use).
+    #[cfg(not(feature = "desktop"))]
+    pub fn from_parts(
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+        surface: wgpu::Surface<'static>,
+        config: wgpu::SurfaceConfiguration,
+        adapter: wgpu::Adapter,
+    ) -> Self {
+        Self {
+            device,
+            queue,
+            surface,
+            config,
+            adapter,
+        }
+    }
+
+    #[cfg(feature = "desktop")]
     pub async fn new(window: Arc<winit::window::Window>) -> anyhow::Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let surface = instance.create_surface(window.clone())?;

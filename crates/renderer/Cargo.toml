@@ -3,9 +3,13 @@ name = "renderer"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = ["desktop"]
+desktop = ["dep:winit"]
+
 [dependencies]
 wgpu = { workspace = true }
-winit = { workspace = true }
+winit = { workspace = true, optional = true }
 glam = { workspace = true }
 bytemuck = { workspace = true }
 image = { workspace = true }

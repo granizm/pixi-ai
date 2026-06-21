@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -27,24 +27,43 @@ const POSE_MODEL_PATH: &str = "assets/models/pose_landmark.onnx";
 const HAND_MODEL_PATH: &str = "assets/models/hand_landmark.onnx";
 const DEFAULT_ANIMATION_PATH: &str = "assets/animations/idle.glb";
 
+/// Returns the base path for assets.
+/// In a macOS .app bundle, assets are in Contents/Resources/assets/.
+/// Otherwise, falls back to the current directory.
+fn assets_base_path() -> PathBuf {
+    if let Ok(exe) = std::env::current_exe() {
+        // In .app bundle: Contents/MacOS/pixi-ai-bin -> Contents/Resources/assets
+        if let Some(macos_dir) = exe.parent() {
+            let resources_assets = macos_dir.join("../Resources/assets");
+            if resources_assets.exists() {
+                return resources_assets
+                    .canonicalize()
+                    .unwrap_or(resources_assets);
+            }
+        }
+    }
+    PathBuf::from("assets")
+}
+
 /// Check that all required model files exist and return a helpful error if not.
 fn check_model_files() -> Result<()> {
+    let base = assets_base_path();
     let required = [
-        (DEFAULT_VRM_PATH, "VRM avatar"),
-        (FACE_MODEL_PATH, "Face landmark ONNX model"),
-        (POSE_MODEL_PATH, "Pose landmark ONNX model"),
-        (HAND_MODEL_PATH, "Hand landmark ONNX model"),
+        (base.join("models/default_avatar.vrm"), "VRM avatar"),
+        (base.join("models/face_landmark.onnx"), "Face landmark ONNX model"),
+        (base.join("models/pose_landmark.onnx"), "Pose landmark ONNX model"),
+        (base.join("models/hand_landmark.onnx"), "Hand landmark ONNX model"),
     ];
 
     let missing: Vec<_> = required
         .iter()
-        .filter(|(path, _)| !Path::new(path).exists())
+        .filter(|(path, _)| !path.exists())
         .collect();
 
     if !missing.is_empty() {
         let list = missing
             .iter()
-            .map(|(path, desc)| format!("  - {path} ({desc})"))
+            .map(|(path, desc)| format!("  - {} ({desc})", path.display()))
             .collect::<Vec<_>>()
             .join("\n");
 
@@ -78,12 +97,19 @@ pub async fn init_all(window: Arc<Window>) -> Result<AppState> {
     // 0. Verify model files exist
     check_model_files()?;
 
+    let assets_base = assets_base_path();
+
     // 1. wgpu initialization
     let mut render_ctx = RenderContext::new(window).await?;
 
     // 2. Load VRM model
-    let vrm_model = vrm::loader::load(DEFAULT_VRM_PATH)
-        .context("Failed to load VRM avatar. Run: sh scripts/setup.sh download-models")?;
+    let vrm_model = vrm::loader::load(
+        assets_base
+            .join("models/default_avatar.vrm")
+            .to_str()
+            .unwrap_or(DEFAULT_VRM_PATH),
+    )
+    .context("Failed to load VRM avatar. Run: sh scripts/setup.sh download-models")?;
 
     // Log VRM model stats for debugging skinning pipeline
     {
@@ -260,8 +286,15 @@ pub async fn init_all(window: Arc<Window>) -> Result<AppState> {
     }
 
     // 4. Initialize ML tracker on a background thread (face-only mode for debugging)
-    let tracker = HolisticTracker::new(FACE_MODEL_PATH, POSE_MODEL_PATH, HAND_MODEL_PATH)
-        .context("Failed to initialize ML tracker. Run: sh scripts/setup.sh download-models")?;
+    let face_path = assets_base.join("models/face_landmark.onnx");
+    let pose_path = assets_base.join("models/pose_landmark.onnx");
+    let hand_path = assets_base.join("models/hand_landmark.onnx");
+    let tracker = HolisticTracker::new(
+        face_path.to_str().unwrap_or(FACE_MODEL_PATH),
+        pose_path.to_str().unwrap_or(POSE_MODEL_PATH),
+        hand_path.to_str().unwrap_or(HAND_MODEL_PATH),
+    )
+    .context("Failed to initialize ML tracker. Run: sh scripts/setup.sh download-models")?;
     let tracker_thread = TrackerThread::new_with_mode(tracker, true);
 
     // 5. Initialize webcam via nokhwa
@@ -287,10 +320,15 @@ pub async fn init_all(window: Arc<Window>) -> Result<AppState> {
         render_ctx.config.format,
     );
 
+    let default_anim_path = assets_base.join("animations/idle.glb");
+    let default_anim_str = default_anim_path
+        .to_str()
+        .unwrap_or(DEFAULT_ANIMATION_PATH)
+        .to_owned();
     let anim_path = prefs
         .animation_path
         .as_deref()
-        .unwrap_or(DEFAULT_ANIMATION_PATH);
+        .unwrap_or(&default_anim_str);
     let idle_animation = load_idle_animation(&vrm_model, anim_path);
 
     // Restore mascot mode if it was active in previous session
@@ -310,9 +348,9 @@ pub async fn init_all(window: Arc<Window>) -> Result<AppState> {
         &render_ctx.window,
     ) {
         Ok(mut li) => {
-            let script_path = std::path::Path::new("assets/scripts/ui.lua");
+            let script_path = assets_base.join("scripts/ui.lua");
             if script_path.exists() {
-                if let Err(e) = li.load_script(script_path) {
+                if let Err(e) = li.load_script(&script_path) {
                     log::warn!("Failed to load UI script: {e}");
                 }
             }
