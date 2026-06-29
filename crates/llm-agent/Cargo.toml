@@ -15,7 +15,9 @@ serde_json = { workspace = true }
 async-trait = "0.1"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["rt", "macros"] }
+# Live smoke tests do real HTTP, so the test runtime needs the IO driver
+# (rt-multi-thread + net/time), not just rt+macros.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
 
 [features]
 # Re-export the base crate's provider features so a consumer selects providers
