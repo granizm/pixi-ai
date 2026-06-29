@@ -32,30 +32,22 @@ pub mod types;
 pub use config::{ProviderConfig, ProviderKind};
 pub use error::LlmError;
 pub use provider::{LlmProvider, TurnRequest, TurnResponse};
-pub use types::{
-    Capabilities, ContentBlock, Message, Role, StopReason, ToolCall, ToolDefinition,
-};
+pub use types::{Capabilities, ContentBlock, Message, Role, StopReason, ToolCall, ToolDefinition};
 
 /// Construct a boxed provider from configuration.
 ///
 /// Dispatches on [`ProviderConfig::kind`] to the feature-gated implementation.
 /// If the corresponding feature isn't enabled, returns [`LlmError::Config`].
-pub fn build_provider(
-    config: ProviderConfig,
-) -> Result<Box<dyn LlmProvider>, LlmError> {
+pub fn build_provider(config: ProviderConfig) -> Result<Box<dyn LlmProvider>, LlmError> {
     match config.kind {
         #[cfg(feature = "anthropic")]
-        ProviderKind::Anthropic => {
-            Ok(Box::new(providers::anthropic::AnthropicProvider::new(config)?))
-        }
+        ProviderKind::Anthropic => Ok(Box::new(providers::anthropic::AnthropicProvider::new(
+            config,
+        )?)),
         #[cfg(feature = "gemini")]
-        ProviderKind::Gemini => {
-            Ok(Box::new(providers::gemini::GeminiProvider::new(config)?))
-        }
+        ProviderKind::Gemini => Ok(Box::new(providers::gemini::GeminiProvider::new(config)?)),
         #[cfg(feature = "ollama")]
-        ProviderKind::Ollama => {
-            Ok(Box::new(providers::ollama::OllamaProvider::new(config)?))
-        }
+        ProviderKind::Ollama => Ok(Box::new(providers::ollama::OllamaProvider::new(config)?)),
         #[allow(unreachable_patterns)]
         other => Err(LlmError::Config(format!(
             "provider {:?} requested but its Cargo feature is not enabled",

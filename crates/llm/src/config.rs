@@ -43,13 +43,36 @@ fn default_max_tokens() -> u32 {
     4096
 }
 
+impl ProviderKind {
+    /// The conventional environment variable holding this provider's API key,
+    /// or `None` for providers that don't need one (Ollama).
+    pub fn api_key_env_var(&self) -> Option<&'static str> {
+        match self {
+            ProviderKind::Anthropic => Some("ANTHROPIC_API_KEY"),
+            ProviderKind::Gemini => Some("GEMINI_API_KEY"),
+            ProviderKind::Ollama => None,
+        }
+    }
+}
+
 impl ProviderConfig {
-    /// Resolve the API key: explicit value wins, else the conventional env var
-    /// for this provider kind. Returns `None` for providers that don't need one.
-    ///
-    /// NOTE: actual env reading is implemented in a later session; this returns
-    /// the explicit `api_key` only for now.
+    /// Resolve the API key: an explicit [`ProviderConfig::api_key`] wins,
+    /// otherwise fall back to the conventional environment variable for this
+    /// provider kind ([`ProviderKind::api_key_env_var`]). Returns `None` for
+    /// providers that don't require a key (Ollama).
     pub fn resolved_api_key(&self) -> Option<String> {
-        self.api_key.clone()
+        if let Some(key) = &self.api_key {
+            return Some(key.clone());
+        }
+        self.kind
+            .api_key_env_var()
+            .and_then(|var| std::env::var(var).ok())
+            .filter(|s| !s.is_empty())
+    }
+
+    /// Whether this provider requires an API key. Used to validate config before
+    /// constructing a provider.
+    pub fn requires_api_key(&self) -> bool {
+        self.kind.api_key_env_var().is_some()
     }
 }

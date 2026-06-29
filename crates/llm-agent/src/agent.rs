@@ -25,11 +25,7 @@ pub struct LlmAgent {
 
 impl LlmAgent {
     /// Build an agent from config + a constructed provider + a tool registry.
-    pub fn new(
-        config: AgentConfig,
-        provider: Box<dyn LlmProvider>,
-        tools: ToolRegistry,
-    ) -> Self {
+    pub fn new(config: AgentConfig, provider: Box<dyn LlmProvider>, tools: ToolRegistry) -> Self {
         Self {
             config,
             provider,
@@ -44,48 +40,85 @@ impl LlmAgent {
     /// up to [`AgentConfig::max_iterations`]), appends the assistant turn, and
     /// returns the final answer. Because history is retained, the *next* call
     /// can resolve references like "what about that?".
-    ///
-    /// Implemented in the next session; the loop skeleton below documents the
-    /// intended control flow.
     pub async fn respond(&mut self, user_text: String) -> Result<AgentOutcome, AgentError> {
         self.memory.push(Message::user_text(user_text));
 
-        // Intended agentic loop (filled in next session):
-        //
-        // for iteration in 0..self.config.max_iterations {
-        //     let req = TurnRequest {
-        //         messages: self.memory.messages(),
-        //         system: self.config.system.clone(),
-        //         tools: self.tools.definitions(),
-        //         max_tokens: self.config.max_tokens,
-        //     };
-        //     let resp = self.provider.turn(&req).await?;
-        //     self.memory.push(Message { role: Role::Assistant, content: resp.blocks.clone() });
-        //     match resp.stop_reason {
-        //         StopReason::EndTurn | StopReason::MaxTokens => {
-        //             return Ok(final answer extracted from resp.blocks);
-        //         }
-        //         StopReason::ToolUse => {
-        //             // dispatch each ContentBlock::ToolUse via self.tools,
-        //             // push a user Message of ToolResult blocks, continue.
-        //         }
-        //     }
-        // }
-        // Err(AgentError::NotConverged(self.config.max_iterations))
+        let tool_defs = self.tools.definitions();
 
-        let _ = (&self.provider, &self.tools, &self.config);
-        let _ = (
-            StopReason::EndTurn,
-            Role::Assistant,
-            ContentBlock::Text { text: String::new() },
-            TurnRequest {
-                messages: Vec::new(),
-                system: None,
-                tools: Vec::new(),
-                max_tokens: 0,
-            },
-        );
-        unimplemented!("LlmAgent::respond — agentic loop implemented in the next session")
+        for iteration in 0..self.config.max_iterations {
+            let request = TurnRequest {
+                messages: self.memory.messages(),
+                system: self.config.system.clone(),
+                tools: tool_defs.clone(),
+                max_tokens: self.config.max_tokens,
+            };
+
+            let response = self.provider.turn(&request).await?;
+
+            // Record the assistant turn (text + any tool_use blocks) so history
+            // and the next turn stay consistent.
+            self.memory.push(Message {
+                role: Role::Assistant,
+                content: response.blocks.clone(),
+            });
+
+            match response.stop_reason {
+                StopReason::EndTurn | StopReason::MaxTokens => {
+                    let text = extract_text(&response.blocks);
+                    return Ok(AgentOutcome {
+                        text,
+                        iterations: iteration + 1,
+                    });
+                }
+                StopReason::ToolUse => {
+                    // Execute every requested tool and gather the results into a
+                    // single user turn, then continue the loop.
+                    let result_blocks = self.run_tool_calls(&response.blocks).await?;
+                    self.memory.push(Message {
+                        role: Role::User,
+                        content: result_blocks,
+                    });
+                    // continue to the next iteration
+                }
+            }
+        }
+
+        Err(AgentError::NotConverged(self.config.max_iterations))
+    }
+
+    /// Execute each `tool_use` block in `blocks` and return the corresponding
+    /// `tool_result` blocks (in request order).
+    async fn run_tool_calls(
+        &self,
+        blocks: &[ContentBlock],
+    ) -> Result<Vec<ContentBlock>, AgentError> {
+        let mut results = Vec::new();
+        for block in blocks {
+            let ContentBlock::ToolUse { id, name, input } = block else {
+                continue;
+            };
+            let result_block = match self.tools.get(name) {
+                Some(tool) => match tool.call(input.clone()).await {
+                    Ok(output) => ContentBlock::ToolResult {
+                        tool_use_id: id.clone(),
+                        content: output,
+                        is_error: false,
+                    },
+                    Err(e) => ContentBlock::ToolResult {
+                        tool_use_id: id.clone(),
+                        content: e.to_string(),
+                        is_error: true,
+                    },
+                },
+                None => ContentBlock::ToolResult {
+                    tool_use_id: id.clone(),
+                    content: format!("unknown tool: {name}"),
+                    is_error: true,
+                },
+            };
+            results.push(result_block);
+        }
+        Ok(results)
     }
 
     /// Reset the conversation (start a new topic).
@@ -97,4 +130,22 @@ impl LlmAgent {
     pub fn history_len(&self) -> usize {
         self.memory.len()
     }
+}
+
+/// Concatenate the text of all [`ContentBlock::Text`] blocks (the model's final
+/// natural-language answer), skipping empties.
+fn extract_text(blocks: &[ContentBlock]) -> String {
+    let mut out = String::new();
+    for block in blocks {
+        if let ContentBlock::Text { text } = block {
+            if text.is_empty() {
+                continue;
+            }
+            if !out.is_empty() {
+                out.push('\n');
+            }
+            out.push_str(text);
+        }
+    }
+    out
 }

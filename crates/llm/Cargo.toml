@@ -35,3 +35,7 @@ http-all = ["anthropic", "gemini", "ollama"]
 # candle        = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers"]
 # candle-metal  = ["candle", "candle-core/metal"]
 # candle-cuda   = ["candle", "candle-core/cuda"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }
+wiremock = "0.6"
