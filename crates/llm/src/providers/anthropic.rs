@@ -60,6 +60,19 @@ impl AnthropicProvider {
 #[async_trait]
 impl LlmProvider for AnthropicProvider {
     async fn turn(&self, request: &TurnRequest) -> Result<TurnResponse, LlmError> {
+        // This provider is text-only (no audio_input). Per the ContentBlock::Audio
+        // seam contract, reject audio rather than silently dropping it.
+        if request.messages.iter().any(|m| {
+            m.content
+                .iter()
+                .any(|b| matches!(b, ContentBlock::Audio { .. }))
+        }) {
+            return Err(LlmError::Unsupported(
+                "Anthropic provider does not accept audio input (use whisper/STT first)"
+                    .to_string(),
+            ));
+        }
+
         let max_tokens = if request.max_tokens > 0 {
             request.max_tokens
         } else {
@@ -104,6 +117,7 @@ impl LlmProvider for AnthropicProvider {
         Capabilities {
             native_tool_calling: true,
             streaming: true,
+            audio_input: false,
         }
     }
 
@@ -184,6 +198,9 @@ impl<'a> From<&'a ContentBlock> for WireContentBlock<'a> {
                 content,
                 is_error: *is_error,
             },
+            // Unreachable: turn() rejects audio before serialization (this
+            // provider is text-only). Map to empty text as an infallible fallback.
+            ContentBlock::Audio { .. } => WireContentBlock::Text { text: "" },
         }
     }
 }

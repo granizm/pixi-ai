@@ -66,6 +66,92 @@ pub enum ContentBlock {
         #[serde(default)]
         is_error: bool,
     },
+    /// Raw audio input for multimodal models that consume sound directly
+    /// (e.g. gemma multimodal, Gemini audio input), bypassing whisper/STT.
+    ///
+    /// **Seam, not yet wired:** no provider sends or accepts this today — the
+    /// HTTP providers are text-only this phase. It exists so the `sound → LLM`
+    /// direct path can be added later without changing `ContentBlock`'s shape or
+    /// breaking the text path. A provider that can't handle audio
+    /// ([`Capabilities::audio_input`] = `false`) must reject a request
+    /// containing this block rather than silently drop it.
+    Audio {
+        /// Encoded audio bytes (e.g. WAV/FLAC) or raw PCM, per `format`.
+        #[serde(with = "base64_bytes")]
+        data: Vec<u8>,
+        /// MIME-ish format hint, e.g. `"audio/wav"`, `"audio/pcm;rate=16000"`.
+        format: String,
+    },
+}
+
+/// Serde helper: encode `Vec<u8>` audio as base64 so it round-trips through JSON
+/// wire formats. (Used only by [`ContentBlock::Audio`], which is not yet sent.)
+mod base64_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(bytes: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        // Minimal inline base64 (std has no base64); fine for the seam since it
+        // isn't exercised yet. Replaced with a real encoder when audio lands.
+        s.serialize_str(&encode(bytes))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        let s = String::deserialize(d)?;
+        decode(&s).map_err(serde::de::Error::custom)
+    }
+
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    fn encode(input: &[u8]) -> String {
+        let mut out = String::new();
+        for chunk in input.chunks(3) {
+            let b = [
+                chunk[0],
+                *chunk.get(1).unwrap_or(&0),
+                *chunk.get(2).unwrap_or(&0),
+            ];
+            let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
+            out.push(ALPHABET[(n >> 18 & 63) as usize] as char);
+            out.push(ALPHABET[(n >> 12 & 63) as usize] as char);
+            out.push(if chunk.len() > 1 {
+                ALPHABET[(n >> 6 & 63) as usize] as char
+            } else {
+                '='
+            });
+            out.push(if chunk.len() > 2 {
+                ALPHABET[(n & 63) as usize] as char
+            } else {
+                '='
+            });
+        }
+        out
+    }
+
+    fn decode(input: &str) -> Result<Vec<u8>, &'static str> {
+        let val = |c: u8| -> Result<u32, &'static str> {
+            ALPHABET
+                .iter()
+                .position(|&a| a == c)
+                .map(|p| p as u32)
+                .ok_or("invalid base64 char")
+        };
+        let cleaned: Vec<u8> = input.bytes().filter(|&c| c != b'=').collect();
+        let mut out = Vec::new();
+        for chunk in cleaned.chunks(4) {
+            let mut n = 0u32;
+            for (i, &c) in chunk.iter().enumerate() {
+                n |= val(c)? << (18 - 6 * i);
+            }
+            out.push((n >> 16 & 0xff) as u8);
+            if chunk.len() > 2 {
+                out.push((n >> 8 & 0xff) as u8);
+            }
+            if chunk.len() > 3 {
+                out.push((n & 0xff) as u8);
+            }
+        }
+        Ok(out)
+    }
 }
 
 /// Declaration of a tool the model may call.
@@ -111,4 +197,9 @@ pub struct Capabilities {
     pub native_tool_calling: bool,
     /// The provider supports SSE / incremental streaming of the response.
     pub streaming: bool,
+    /// The provider/model can consume [`ContentBlock::Audio`] directly
+    /// (multimodal `sound → LLM`, no whisper/STT step). `false` for every
+    /// provider this phase — it's the flag the bridge will consult later to
+    /// decide whether to run STT or pass raw audio through.
+    pub audio_input: bool,
 }

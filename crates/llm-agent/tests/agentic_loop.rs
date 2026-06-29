@@ -51,6 +51,7 @@ impl LlmProvider for ScriptedProvider {
         Capabilities {
             native_tool_calling: true,
             streaming: false,
+            audio_input: false,
         }
     }
 

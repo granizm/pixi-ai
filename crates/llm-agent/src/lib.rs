@@ -38,6 +38,13 @@ pub mod memory;
 pub mod tools;
 pub mod types;
 
+/// Transcript bridge (channel + sequential async runner). The core
+/// ([`speech::bridge`] / [`speech::SpeechRunner`]) needs only the `bridge`
+/// feature; the `speech` feature adds [`speech::speech_callback`] for
+/// speech-capture.
+#[cfg(feature = "bridge")]
+pub mod speech;
+
 pub use agent::LlmAgent;
 pub use config::AgentConfig;
 pub use error::AgentError;
