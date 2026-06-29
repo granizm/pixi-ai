@@ -1,0 +1,37 @@
+[package]
+name = "llm"
+version = "0.1.0"
+edition = "2021"
+description = "LLM provider abstraction (Anthropic / Gemini / Ollama) over a single async trait"
+
+[dependencies]
+log = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+async-trait = "0.1"
+
+# HTTP providers (Anthropic / Gemini / Ollama) share the reqwest + tokio path.
+# Gated behind features so a consumer can pull only what it needs.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"], optional = true }
+tokio = { version = "1", features = ["rt", "sync"], optional = true }
+
+[features]
+default = ["anthropic"]
+
+# Each cloud / local-server provider is an HTTP client over reqwest.
+anthropic = ["dep:reqwest", "dep:tokio"]
+gemini = ["dep:reqwest", "dep:tokio"]
+ollama = ["dep:reqwest", "dep:tokio"]
+
+# Convenience bundle: every HTTP-based provider.
+http-all = ["anthropic", "gemini", "ollama"]
+
+# --- Reserved for a later phase (NOT implemented this session) ---
+# In-process inference (candle / mistral.rs / llama-cpp-rs) is heavy and pulls a
+# large dependency tree plus GPU-backend feature juggling. The LlmProvider trait
+# is designed so these slot in later without breaking the HTTP providers.
+# candle        = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers"]
+# candle-metal  = ["candle", "candle-core/metal"]
+# candle-cuda   = ["candle", "candle-core/cuda"]

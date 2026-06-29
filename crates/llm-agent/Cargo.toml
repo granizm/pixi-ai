@@ -1,0 +1,24 @@
+[package]
+name = "llm-agent"
+version = "0.1.0"
+edition = "2021"
+description = "Agentic loop over an LLM provider: drives tool-use turns to answer conversational, multi-step queries"
+
+[dependencies]
+# Base layer: provider abstraction + common types.
+llm = { path = "../llm", default-features = false }
+
+log = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = "0.1"
+
+[features]
+# Re-export the base crate's provider features so a consumer selects providers
+# here and they propagate down to `llm`.
+default = ["anthropic"]
+anthropic = ["llm/anthropic"]
+gemini = ["llm/gemini"]
+ollama = ["llm/ollama"]
+http-all = ["llm/http-all"]
