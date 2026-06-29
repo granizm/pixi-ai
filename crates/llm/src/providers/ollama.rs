@@ -51,6 +51,9 @@ impl LlmProvider for OllamaProvider {
         Capabilities {
             native_tool_calling: true,
             streaming: true,
+            // Some local multimodal models (e.g. gemma multimodal via Ollama)
+            // can take audio, but this provider is text-only for now.
+            audio_input: false,
         }
     }
 

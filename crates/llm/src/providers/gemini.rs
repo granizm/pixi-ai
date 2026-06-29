@@ -44,6 +44,10 @@ impl LlmProvider for GeminiProvider {
         Capabilities {
             native_tool_calling: true,
             streaming: true,
+            // Gemini does support audio input, but this provider is text-only
+            // until the audio path is implemented. Advertise false so the agent
+            // doesn't route audio here yet.
+            audio_input: false,
         }
     }
 
