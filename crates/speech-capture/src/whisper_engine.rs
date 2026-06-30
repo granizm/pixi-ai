@@ -31,7 +31,12 @@ impl WhisperEngine {
 
     /// Transcribe audio (i16 16kHz mono) and return full text.
     pub fn transcribe(&self, audio_i16: &[i16]) -> Result<String, SpeechError> {
-        let audio_f32: Vec<f32> = audio_i16.iter().map(|&s| s as f32 / 32768.0).collect();
+        let mut audio_f32: Vec<f32> = audio_i16.iter().map(|&s| s as f32 / 32768.0).collect();
+        // Peak-normalize quiet speech so whisper recognizes it better (small/far
+        // voices were misrecognized). Scale so the loudest sample hits ~0.9, with
+        // a gain cap so near-silence/noise isn't blown up. Matches the on-device
+        // (Gemma 4) path's normalization for consistent behavior across engines.
+        normalize_peak(&mut audio_f32);
 
         let mut state = self
             .ctx
@@ -117,4 +122,28 @@ impl WhisperEngine {
         }
         None
     }
+}
+
+/// Peak-normalize a mono f32 [-1,1] buffer in place: scale so the loudest sample
+/// reaches ~0.9 of full scale, capped so near-silence/noise isn't amplified into
+/// a roar. No-op if already loud enough or if the buffer is silent.
+fn normalize_peak(samples: &mut [f32]) {
+    const TARGET_PEAK: f32 = 0.9;
+    const MAX_GAIN: f32 = 12.0;
+
+    let peak = samples.iter().fold(0.0f32, |m, &s| m.max(s.abs()));
+    if peak <= f32::EPSILON {
+        return; // silence
+    }
+    let mut gain = TARGET_PEAK / peak;
+    if gain <= 1.0 {
+        return; // already loud enough — don't attenuate
+    }
+    if gain > MAX_GAIN {
+        gain = MAX_GAIN;
+    }
+    for s in samples.iter_mut() {
+        *s = (*s * gain).clamp(-1.0, 1.0);
+    }
+    log::debug!("whisper: peak-normalized (peak={peak:.3}, gain={gain:.2})");
 }
