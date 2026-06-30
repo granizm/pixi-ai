@@ -65,10 +65,7 @@ impl LlmAgent {
             match response.stop_reason {
                 StopReason::EndTurn | StopReason::MaxTokens => {
                     let text = extract_text(&response.blocks);
-                    return Ok(AgentOutcome {
-                        text,
-                        iterations: iteration + 1,
-                    });
+                    return Ok(AgentOutcome::answer(text, iteration + 1));
                 }
                 StopReason::ToolUse => {
                     // Execute every requested tool and gather the results into a

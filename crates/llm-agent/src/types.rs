@@ -4,9 +4,26 @@
 #[derive(Debug, Clone)]
 pub struct AgentOutcome {
     /// The final natural-language answer to surface to the user (display / TTS).
+    /// Empty when `error` is set.
     pub text: String,
     /// How many agentic iterations (tool round-trips) it took to get here.
     pub iterations: u32,
+    /// Set when the turn failed (provider/network/tool error). When `Some`, the
+    /// agent produced no answer and this is a human-readable reason to surface
+    /// to the user instead of leaving the UI spinning. `None` on success.
+    pub error: Option<String>,
+}
+
+impl AgentOutcome {
+    /// A successful answer.
+    pub fn answer(text: String, iterations: u32) -> Self {
+        Self { text, iterations, error: None }
+    }
+
+    /// A failed turn carrying a human-readable reason (no answer text).
+    pub fn failure(error: String) -> Self {
+        Self { text: String::new(), iterations: 0, error: Some(error) }
+    }
 }
 
 /// An event emitted during the agentic loop, for callers that want to observe

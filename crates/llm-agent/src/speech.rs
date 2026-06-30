@@ -84,18 +84,19 @@ impl SpeechRunner {
             if transcript.trim().is_empty() {
                 continue;
             }
-            match self.agent.respond(transcript).await {
-                Ok(outcome) => {
-                    // If the consumer has gone away, stop.
-                    if self.tx_out.send(outcome).await.is_err() {
-                        break;
-                    }
-                }
+            let outcome = match self.agent.respond(transcript).await {
+                Ok(outcome) => outcome,
                 Err(e) => {
+                    // Surface the failure to the consumer instead of swallowing
+                    // it — otherwise the UI spins on "考え中…" forever. Keep the
+                    // loop alive; the next utterance still has prior history.
                     log::warn!("agent failed on a transcript: {e}");
-                    // Keep going; do not propagate. The next utterance still has
-                    // the prior history (the failed user turn remains in memory).
+                    AgentOutcome::failure(e.to_string())
                 }
+            };
+            // If the consumer has gone away, stop.
+            if self.tx_out.send(outcome).await.is_err() {
+                break;
             }
         }
     }
