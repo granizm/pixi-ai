@@ -1,0 +1,46 @@
+[package]
+name = "llm-agent"
+version = "0.1.0"
+edition = "2021"
+description = "Agentic loop over an LLM provider: drives tool-use turns to answer conversational, multi-step queries"
+
+[dependencies]
+# Base layer: provider abstraction + common types.
+llm = { path = "../llm", default-features = false }
+
+log = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = "0.1"
+
+# --- Optional: transcript bridge -------------------------------------------
+# The `bridge` feature provides the channel + async runner that drives the agent
+# sequentially from a stream of transcripts. It depends only on tokio sync
+# channels — NO speech-capture, NO native ten-vad — so it links and tests on any
+# platform. The `speech` feature adds the speech-capture callback on top.
+tokio = { version = "1", features = ["rt", "sync"], optional = true }
+speech-capture = { path = "../speech-capture", optional = true }
+
+[dev-dependencies]
+# Live smoke tests do real HTTP, so the test runtime needs the IO driver
+# (rt-multi-thread + net/time), not just rt+macros.
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
+
+[features]
+# Re-export the base crate's provider features so a consumer selects providers
+# here and they propagate down to `llm`.
+default = ["anthropic"]
+anthropic = ["llm/anthropic"]
+gemini = ["llm/gemini"]
+ollama = ["llm/ollama"]
+http-all = ["llm/http-all"]
+
+# Transcript bridge: channel + sequential async runner. tokio-only, no native
+# deps — tests run anywhere.
+bridge = ["dep:tokio"]
+
+# Whisper bridge: the speech-capture callback on top of `bridge`. Pulls
+# speech-capture (and its native ten-vad). STT is enabled on speech-capture's
+# side. Requires that native toolchain to link, so it's opt-in.
+speech = ["bridge", "dep:speech-capture"]
