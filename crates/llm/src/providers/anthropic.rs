@@ -82,8 +82,17 @@ impl LlmProvider for AnthropicProvider {
         let body = WireRequest {
             model: &self.model,
             max_tokens,
-            system: request.system.as_deref(),
-            messages: request.messages.iter().map(WireMessage::from).collect(),
+            // Empty system (settings screen with a blank field) → omit entirely.
+            system: request.system.as_deref().filter(|s| !s.is_empty()),
+            // Messages whose content is empty after block filtering (e.g. an
+            // assistant turn that was only thinking blocks) are rejected by
+            // the API — drop them from the request.
+            messages: request
+                .messages
+                .iter()
+                .map(WireMessage::from)
+                .filter(|m| !m.content.is_empty())
+                .collect(),
             tools: request.tools.iter().map(WireTool::from).collect(),
         };
 
@@ -152,7 +161,14 @@ impl<'a> From<&'a crate::types::Message> for WireMessage<'a> {
                 Role::User => "user",
                 Role::Assistant => "assistant",
             },
-            content: m.content.iter().map(WireContentBlock::from).collect(),
+            // filter_map: blocks that would serialize invalid (empty text,
+            // audio on a text-only provider) are dropped defensively — the
+            // API rejects empty text blocks with HTTP 400.
+            content: m
+                .content
+                .iter()
+                .filter_map(WireContentBlock::try_from_block)
+                .collect(),
         }
     }
 }
@@ -182,25 +198,28 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-impl<'a> From<&'a ContentBlock> for WireContentBlock<'a> {
-    fn from(b: &'a ContentBlock) -> Self {
+impl<'a> WireContentBlock<'a> {
+    /// Serialize a domain block, or `None` if it must not go on the wire:
+    /// empty text blocks are rejected by the API (HTTP 400), and audio has no
+    /// representation on this text-only provider (turn() rejects it upfront;
+    /// this is the infallible fallback).
+    fn try_from_block(b: &'a ContentBlock) -> Option<Self> {
         match b {
-            ContentBlock::Text { text } => WireContentBlock::Text { text },
+            ContentBlock::Text { text } if text.is_empty() => None,
+            ContentBlock::Text { text } => Some(WireContentBlock::Text { text }),
             ContentBlock::ToolUse { id, name, input } => {
-                WireContentBlock::ToolUse { id, name, input }
+                Some(WireContentBlock::ToolUse { id, name, input })
             }
             ContentBlock::ToolResult {
                 tool_use_id,
                 content,
                 is_error,
-            } => WireContentBlock::ToolResult {
+            } => Some(WireContentBlock::ToolResult {
                 tool_use_id,
                 content,
                 is_error: *is_error,
-            },
-            // Unreachable: turn() rejects audio before serialization (this
-            // provider is text-only). Map to empty text as an infallible fallback.
-            ContentBlock::Audio { .. } => WireContentBlock::Text { text: "" },
+            }),
+            ContentBlock::Audio { .. } => None,
         }
     }
 }
@@ -237,7 +256,11 @@ impl WireResponse {
             _ => StopReason::EndTurn,
         };
         TurnResponse {
-            blocks: self.content.into_iter().map(Into::into).collect(),
+            blocks: self
+                .content
+                .into_iter()
+                .filter_map(OwnedContentBlock::into_content_block)
+                .collect(),
             stop_reason,
         }
     }
@@ -261,18 +284,22 @@ enum OwnedContentBlock {
     Other,
 }
 
-impl From<OwnedContentBlock> for ContentBlock {
-    fn from(b: OwnedContentBlock) -> Self {
-        match b {
-            OwnedContentBlock::Text { text } => ContentBlock::Text { text },
+impl OwnedContentBlock {
+    /// Convert to a domain block, or `None` for blocks that must not be kept
+    /// in history: unknown types (e.g. `thinking`) and empty text.
+    ///
+    /// The previous version mapped unknown blocks to empty text — replaying
+    /// that in the next turn's history triggers HTTP 400
+    /// "messages: text content blocks must be non-empty" (observed with
+    /// claude-sonnet-5, whose responses carry thinking blocks; 2026-07-04).
+    fn into_content_block(self) -> Option<ContentBlock> {
+        match self {
+            OwnedContentBlock::Text { text } if text.is_empty() => None,
+            OwnedContentBlock::Text { text } => Some(ContentBlock::Text { text }),
             OwnedContentBlock::ToolUse { id, name, input } => {
-                ContentBlock::ToolUse { id, name, input }
+                Some(ContentBlock::ToolUse { id, name, input })
             }
-            // Map unknown blocks to empty text so the loop still has a valid
-            // assistant turn; they carry no actionable content for us.
-            OwnedContentBlock::Other => ContentBlock::Text {
-                text: String::new(),
-            },
+            OwnedContentBlock::Other => None,
         }
     }
 }
