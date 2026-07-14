@@ -1,0 +1,7 @@
+[package]
+name = "nonfatal-bridge"
+version = "0.1.0"
+edition = "2021"
+description = "Platform-agnostic bridge: Rust panic / error messages -> host crash reporter (Crashlytics non-fatal)"
+
+[dependencies]

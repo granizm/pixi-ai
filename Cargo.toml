@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/app", "crates/renderer", "crates/vrm", "crates/solver", "crates/tracker", "crates/logger", "crates/virtual-camera", "crates/video-decoder", "crates/ten-vad", "crates/audio-capture", "crates/speech-capture", "crates/etd", "crates/lua", "crates/lua-imgui", "crates/go-plugin", "crates/dynplug", "crates/dynplug-example", "crates/dynplug-example-l3", "crates/dynplug-example-wasm", "crates/llm", "crates/llm-agent"]
+members = ["crates/app", "crates/renderer", "crates/vrm", "crates/solver", "crates/tracker", "crates/logger", "crates/virtual-camera", "crates/video-decoder", "crates/ten-vad", "crates/audio-capture", "crates/speech-capture", "crates/etd", "crates/lua", "crates/lua-imgui", "crates/go-plugin", "crates/dynplug", "crates/dynplug-example", "crates/dynplug-example-l3", "crates/dynplug-example-wasm", "crates/llm", "crates/llm-agent", "crates/nonfatal-bridge"]
 
 [workspace.dependencies]
 wgpu = "24.0"
